@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 import (
 	"github.com/0x0bsod/raspStats/stats"
@@ -45,5 +48,7 @@ func scheduledTask() {
 }
 
 func main() {
-	startScheduler()
+	//startScheduler()
+	err := stats.GetCpuLoad(1 * time.Second)
+	poe(err)
 }
