@@ -49,6 +49,9 @@ func scheduledTask() {
 
 func main() {
 	//startScheduler()
-	err := stats.GetCpuLoad(1 * time.Second)
-	poe(err)
+	for {
+		err := stats.GetCpuLoad(1 * time.Second)
+		poe(err)
+	}
+
 }

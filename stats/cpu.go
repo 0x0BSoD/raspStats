@@ -1,3 +1,6 @@
+// https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+//https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
+
 package stats
 
 import (
@@ -48,34 +51,23 @@ func calc(data string) (cpuItem, error) {
 	}, nil
 }
 
-//https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
-//
-//PrevNonIdle = prevuser + prevnice + prevsystem + previrq + prevsoftirq + prevsteal
-//NonIdle = user + nice + system + irq + softirq + steal
-//
-//PrevTotal = PrevIdle + PrevNonIdle
-//Total = Idle + NonIdle
-//
-//# differentiate: actual value minus the previous one
-//totald = Total - PrevTotal
-//idled = Idle - PrevIdle
-//
-//CPU_Percentage = (totald - idled)/totald
-
+// GetCpuLoad return calculated cpu load from /proc/stat
 func GetCpuLoad(interval time.Duration) error {
 	dat, err := openFile("/proc/stat")
 	if err != nil {
 		return err
 	}
 
+	// first probe
 	totalPre, err := calc(strings.Split(dat, "\n")[0])
 	if err != nil {
 		return err
 	}
-	fmt.Println(totalPre)
 
+	// wait
 	time.Sleep(interval)
 
+	// second probe
 	dat, err = openFile("/proc/stat")
 	if err != nil {
 		return err
@@ -84,13 +76,22 @@ func GetCpuLoad(interval time.Duration) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(totalPost)
 
-	//PrevIdle = previdle + previowait
 	preIdle := totalPre.Idle + totalPre.IOWait
-
-	//Idle = idle + iowait
 	idle := totalPost.Idle + totalPost.IOWait
+
+	preNonIdle := totalPre.User + totalPre.Nice + totalPre.System + totalPre.Irq + totalPre.SoftIrq + totalPre.Steal
+	nonIdle := totalPost.User + totalPost.Nice + totalPost.System + totalPost.Irq + totalPost.SoftIrq + totalPost.Steal
+
+	prevTotal := preIdle + preNonIdle
+	total := idle + nonIdle
+
+	totalD := total - prevTotal
+	idled := idle - preIdle
+
+	percents := ((float64(totalD) - float64(idled)) / float64(totalD)) * 100.0
+
+	fmt.Printf("Percents: %.2f%%\n", percents)
 
 	//for _, i := range strData[1:] {
 	//	if strings.HasPrefix(i, "cpu") {
