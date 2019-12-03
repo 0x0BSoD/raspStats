@@ -37,6 +37,7 @@ func DBConn() (*sql.DB, error) {
 }
 
 type DBItem struct {
+	CpuLoad stats.CpuLoad `json:"cpu_load"`
 	Uptime  stats.Uptime  `json:"uptime"`
 	LoadAvg stats.LoadAvg `json:"load_avg"`
 }

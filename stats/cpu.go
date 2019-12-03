@@ -4,7 +4,6 @@
 package stats
 
 import (
-	"fmt"
 	"github.com/0x0bsod/strNorm"
 	"runtime"
 	"strconv"
@@ -12,13 +11,18 @@ import (
 	"time"
 )
 
+type CpuLoad struct {
+	Total   float64         `json:"total"`
+	PerCore map[int]float64 `json:"per_core"`
+}
+
 // Time units are in USER_HZ (typically hundredths of a second)
 type cpuItem struct {
 	User      int // normal processes executing in user mode
 	Nice      int // niced processes executing in user mode
 	System    int // processes executing in kernel mode
 	Idle      int // twiddling thumbs
-	IOWait    int // waiting for I/O to complete https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+	IOWait    int // waiting for I/O to complete
 	Irq       int // servicing interrupts
 	SoftIrq   int // servicing softirqs
 	Steal     int // involuntary wait
@@ -72,27 +76,27 @@ func calc(totalPre, totalPost cpuItem) float64 {
 }
 
 // GetCpuLoad return calculated cpu load from /proc/stat
-func GetCpuLoad(interval time.Duration) error {
+func GetCpuLoad(interval time.Duration) (CpuLoad, error) {
 	coresPre := make([]cpuItem, runtime.NumCPU())
 	coresPost := make([]cpuItem, runtime.NumCPU())
 
 	// first probe
 	dat, err := openFile("/proc/stat")
 	if err != nil {
-		return err
+		return CpuLoad{}, err
 	}
 	cpuStatsFirst := strings.Split(dat, "\n")
 	// total
 	totalPre, err := createStruct(cpuStatsFirst[0])
 	if err != nil {
-		return err
+		return CpuLoad{}, err
 	}
 	// other CPU's
 	for idx, i := range cpuStatsFirst[1:] {
 		if strings.HasPrefix(i, "cpu") {
 			pre, err := createStruct(i)
 			if err != nil {
-				return err
+				return CpuLoad{}, err
 			}
 			coresPre[idx] = pre
 		}
@@ -105,32 +109,32 @@ func GetCpuLoad(interval time.Duration) error {
 	// second probe
 	dat, err = openFile("/proc/stat")
 	if err != nil {
-		return err
+		return CpuLoad{}, err
 	}
 	cpuStatsSecond := strings.Split(dat, "\n")
 	// total
 	totalPost, err := createStruct(cpuStatsSecond[0])
 	if err != nil {
-		return err
+		return CpuLoad{}, err
 	}
 	// other CPU's
 	for idx, i := range cpuStatsSecond[1:] {
 		if strings.HasPrefix(i, "cpu") {
 			post, err := createStruct(i)
 			if err != nil {
-				return err
+				return CpuLoad{}, err
 			}
 			coresPost[idx] = post
 		}
 	}
 	// ===========================================================
 
-	fmt.Printf("Overall CPU usage: %.2f%%\n", calc(totalPre, totalPost))
-
+	var result CpuLoad
+	result.Total = calc(totalPre, totalPost)
+	result.PerCore = make(map[int]float64, runtime.NumCPU())
 	for i := 0; i < runtime.NumCPU(); i++ {
-		fmt.Printf("CPU %d usage: %.2f%%\n", i, calc(coresPre[i], coresPost[i]))
+		result.PerCore[i] = calc(coresPre[i], coresPost[i])
 	}
-	fmt.Println("---")
 
-	return nil
+	return result, nil
 }

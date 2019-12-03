@@ -31,12 +31,16 @@ func scheduledTask() {
 	loadAvg, err := stats.GetLoadAvg()
 	poe(err)
 
+	cpuLoad, err := stats.GetCpuLoad(1 * time.Second)
+	poe(err)
+
 	db, err := DBConn()
 	poe(err)
 
 	err = StoreItem(db, DBItem{
 		Uptime:  uptime,
 		LoadAvg: loadAvg,
+		CpuLoad: cpuLoad,
 	})
 	poe(err)
 
@@ -48,10 +52,5 @@ func scheduledTask() {
 }
 
 func main() {
-	//startScheduler()
-	for {
-		err := stats.GetCpuLoad(1 * time.Second)
-		poe(err)
-	}
-
+	startScheduler()
 }
