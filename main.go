@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gorilla/websocket"
 	"time"
 )
 
@@ -17,14 +18,14 @@ func poe(err error) {
 	}
 }
 
-func startScheduler() {
-	gocron.Every(1).Minute().Do(scheduledTask)
+func startScheduler(ws *websocket.Conn) {
+	gocron.Every(1).Minute().Do(scheduledTask, ws)
 	_, _time := gocron.NextRun()
 	fmt.Println("Next Run: ", _time)
 	<-gocron.Start()
 }
 
-func scheduledTask() {
+func scheduledTask(ws *websocket.Conn) {
 	uptime, err := stats.GetUptime()
 	poe(err)
 
@@ -44,13 +45,10 @@ func scheduledTask() {
 	})
 	poe(err)
 
-	_, err = GetAllItems(db)
-	poe(err)
-
 	err = db.Close()
 	poe(err)
 }
 
 func main() {
-	startScheduler()
+	Server()
 }

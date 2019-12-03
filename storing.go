@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"github.com/0x0bsod/raspStats/stats"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
@@ -73,10 +72,18 @@ func StoreItem(db *sql.DB, data DBItem) error {
 	return nil
 }
 
-func GetAllItems(db *sql.DB) (string, error) {
+type APIResponse []struct {
+	Timestamp int64  `json:"timestamp"`
+	Data      DBItem `json:"data"`
+}
+
+func GetAllItems(db *sql.DB) (APIResponse, error) {
+
+	var result APIResponse
+
 	rows, err := db.Query("select timestamp, data from stats")
 	if err != nil {
-		return "", err
+		return APIResponse{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -84,14 +91,24 @@ func GetAllItems(db *sql.DB) (string, error) {
 		var data string
 		err = rows.Scan(&timestamp, &data)
 		if err != nil {
-			return "", err
+			return APIResponse{}, err
 		}
-		fmt.Println(timestamp, data)
+
+		var bData DBItem
+		err = json.Unmarshal([]byte(data), &bData)
+
+		result = append(result, struct {
+			Timestamp int64  `json:"timestamp"`
+			Data      DBItem `json:"data"`
+		}{
+			Timestamp: timestamp.Unix(),
+			Data:      bData,
+		})
 	}
 	err = rows.Err()
 	if err != nil {
-		return "", err
+		return APIResponse{}, err
 	}
 
-	return "", nil
+	return result, nil
 }
