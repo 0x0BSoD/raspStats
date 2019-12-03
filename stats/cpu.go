@@ -6,6 +6,7 @@ package stats
 import (
 	"fmt"
 	"github.com/0x0bsod/strNorm"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -30,10 +31,11 @@ func convertIt(s string) int {
 	if err != nil {
 		panic(err)
 	}
+
 	return i
 }
 
-func calc(data string) (cpuItem, error) {
+func createStruct(data string) (cpuItem, error) {
 	normString := strNorm.Normalize(data)
 	items := strings.Split(normString, " ")[1:]
 
@@ -51,32 +53,7 @@ func calc(data string) (cpuItem, error) {
 	}, nil
 }
 
-// GetCpuLoad return calculated cpu load from /proc/stat
-func GetCpuLoad(interval time.Duration) error {
-	dat, err := openFile("/proc/stat")
-	if err != nil {
-		return err
-	}
-
-	// first probe
-	totalPre, err := calc(strings.Split(dat, "\n")[0])
-	if err != nil {
-		return err
-	}
-
-	// wait
-	time.Sleep(interval)
-
-	// second probe
-	dat, err = openFile("/proc/stat")
-	if err != nil {
-		return err
-	}
-	totalPost, err := calc(strings.Split(dat, "\n")[0])
-	if err != nil {
-		return err
-	}
-
+func calc(totalPre, totalPost cpuItem) float64 {
 	preIdle := totalPre.Idle + totalPre.IOWait
 	idle := totalPost.Idle + totalPost.IOWait
 
@@ -91,19 +68,69 @@ func GetCpuLoad(interval time.Duration) error {
 
 	percents := ((float64(totalD) - float64(idled)) / float64(totalD)) * 100.0
 
-	fmt.Printf("Percents: %.2f%%\n", percents)
+	return percents
+}
 
-	//for _, i := range strData[1:] {
-	//	if strings.HasPrefix(i, "cpu") {
-	//		seconds, err := calc(i)
-	//		if err != nil {
-	//			return err
-	//		}
-	//
-	//		fmt.Println(i)
-	//		fmt.Println(seconds)
-	//	}
-	//}
+// GetCpuLoad return calculated cpu load from /proc/stat
+func GetCpuLoad(interval time.Duration) error {
+	coresPre := make([]cpuItem, runtime.NumCPU())
+	coresPost := make([]cpuItem, runtime.NumCPU())
+
+	// first probe
+	dat, err := openFile("/proc/stat")
+	if err != nil {
+		return err
+	}
+	cpuStatsFirst := strings.Split(dat, "\n")
+	// total
+	totalPre, err := createStruct(cpuStatsFirst[0])
+	if err != nil {
+		return err
+	}
+	// other CPU's
+	for idx, i := range cpuStatsFirst[1:] {
+		if strings.HasPrefix(i, "cpu") {
+			pre, err := createStruct(i)
+			if err != nil {
+				return err
+			}
+			coresPre[idx] = pre
+		}
+	}
+	// ===========================================================
+
+	// wait
+	time.Sleep(interval)
+
+	// second probe
+	dat, err = openFile("/proc/stat")
+	if err != nil {
+		return err
+	}
+	cpuStatsSecond := strings.Split(dat, "\n")
+	// total
+	totalPost, err := createStruct(cpuStatsSecond[0])
+	if err != nil {
+		return err
+	}
+	// other CPU's
+	for idx, i := range cpuStatsSecond[1:] {
+		if strings.HasPrefix(i, "cpu") {
+			post, err := createStruct(i)
+			if err != nil {
+				return err
+			}
+			coresPost[idx] = post
+		}
+	}
+	// ===========================================================
+
+	fmt.Printf("Overall CPU usage: %.2f%%\n", calc(totalPre, totalPost))
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		fmt.Printf("CPU %d usage: %.2f%%\n", i, calc(coresPre[i], coresPost[i]))
+	}
+	fmt.Println("---")
 
 	return nil
 }
