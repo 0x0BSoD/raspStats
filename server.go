@@ -129,5 +129,6 @@ func Server() {
 	handler := c.Handler(router)
 	bindAddr := fmt.Sprintf(":%d", 8081)
 
+	go startScheduler(sessWS)
 	log.Fatal(http.ListenAndServe(bindAddr, handler))
 }
